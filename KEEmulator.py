@@ -33,7 +33,7 @@ def parse_cmd(line):
 
 def execute_cmd(cmd, args):
     if cmd == 'exit':
-        print(f"{t}Exiting KEEmulator.")
+        print(f"Exiting KEEmulator.")
         sys.exit(0)
     elif cmd == 'ls':
         print(f"ls {args}")
