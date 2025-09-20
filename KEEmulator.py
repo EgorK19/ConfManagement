@@ -3,8 +3,18 @@ import sys
 import shlex
 
 def get_uhd():
-    username = os.getlogin()
-    hostname = os.uname().nodename if hasattr(os, 'uname') else os.environ['COMPUTERNAME']
+    try:
+        username = os.getlogin()
+    except:
+        username =  os.environ.get('USERNAME') or os.environ.get('USER') or 'unknown'
+    try:
+        if hasattr(os, 'uname'):
+            hostname =  os.uname().nodename
+        else:
+            hostname = os.environ.get('COMPUTERNAME', 'unknown-host')
+    except:
+        hostname = 'unknown-host'
+
     cwd = os.getcwd()
     dir = os.path.expanduser('~')
     if cwd.startswith(dir):
@@ -14,11 +24,14 @@ def get_uhd():
 def parse_cmd(line):
     if not line.strip():
         return None, []
-    line = shlex.split(line)
-    cmd, args = line[0].lower(), line[1:]
-    return cmd," ".join(args)
+    try:
+        line = shlex.split(line)
+        cmd, args = line[0].lower(), line[1:]
+        return cmd," ".join(args)
+    except Exception as e:
+        print(f"Error: {e}")
 
-def execute_cmd(cmd, args,t):
+def execute_cmd(cmd, args):
     if cmd == 'exit':
         print(f"{t}Exiting KEEmulator.")
         sys.exit(0)
@@ -27,20 +40,19 @@ def execute_cmd(cmd, args,t):
     elif cmd == 'cd':
         print(f"cd {args}")
     else:
-        print(f"{t}command not found: {cmd}")
+        print(f"Command not found: {cmd}")
 
 print("KEEmulator. Type 'exit' to quit.")
 while True:
-    t = get_uhd()
     try:
-        line = input(t)
+        line = input(get_uhd())
         cmd, args = parse_cmd(line)
         if cmd:
-            execute_cmd(cmd, args,t)
+            execute_cmd(cmd, args)
     except KeyboardInterrupt:
-        print("Type 'exit' to quit")
+        print("\nType 'exit' to quit")
     except Exception as e:
-        print(f"{t} error: {e}")
+        print(f"Error: {e}")
 
 
 
