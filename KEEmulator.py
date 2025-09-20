@@ -24,12 +24,9 @@ def get_uhd():
 def parse_cmd(line):
     if not line.strip():
         return None, []
-    try:
-        line = shlex.split(line)
-        cmd, args = line[0].lower(), line[1:]
-        return cmd," ".join(args)
-    except Exception as e:
-        print(f"Error: {e}")
+    line = shlex.split(line)
+    cmd, args = line[0].lower(), line[1:]
+    return cmd,args
 
 def execute_cmd(cmd, args):
     if cmd == 'exit':
@@ -53,8 +50,3 @@ while True:
         print("\nType 'exit' to quit")
     except Exception as e:
         print(f"Error: {e}")
-
-
-
-
-
