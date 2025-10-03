@@ -1,0 +1,5 @@
+cd /var
+ls -l
+echo "Testing unknown command"
+unknown_cmd
+exit
