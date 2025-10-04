@@ -3,10 +3,15 @@ import sys
 import shlex
 import argparse
 import logging
+import json
+import base64
 
 VFS_PATH = None
 LOG_PATH = None
 SCRIPT_PATH = None
+vfs_root = None
+current_vfs_path = []
+
 
 def setup_args():
     parser = argparse.ArgumentParser(description='KEEmulator')
@@ -14,6 +19,7 @@ def setup_args():
     parser.add_argument('--log_path', type=str, help='Path to log file')
     parser.add_argument('--script_path', type=str, help='Path to startup script')
     return parser.parse_args()
+
 
 def setup_logging():
     logging.basicConfig(
@@ -23,11 +29,13 @@ def setup_logging():
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
+
 def get_username():
     try:
         return os.getlogin()
     except:
         return os.environ.get('USERNAME') or os.environ.get('USER') or 'unknown'
+
 
 def get_uhd():
     try:
@@ -41,11 +49,67 @@ def get_uhd():
             hostname = os.environ.get('COMPUTERNAME', 'unknown-host')
     except:
         hostname = 'unknown-host'
-    cwd = os.getcwd()
-    dir = os.path.expanduser('~')
-    if cwd.startswith(dir):
-        cwd = '~' + cwd[len(dir):]
+
+    if vfs_root:
+        cwd = '/' + '/'.join(current_vfs_path)
+    else:
+        cwd = os.getcwd()
+        dir = os.path.expanduser('~')
+        if cwd.startswith(dir):
+            cwd = '~' + cwd[len(dir):]
+
     return f"{username}@{hostname}:{cwd}$ "
+
+
+def load_vfs():
+    global vfs_root, current_vfs_path
+    if not VFS_PATH:
+        return False
+
+    try:
+        with open(VFS_PATH, 'r') as f:
+            vfs_root = json.load(f)
+        current_vfs_path = []
+        return True
+    except Exception as e:
+        print(f"Error loading VFS: {e}")
+        return False
+
+
+def find_vfs_node(path):
+    if not vfs_root:
+        return None
+
+    if not path or path == '/':
+        return vfs_root
+
+    path_parts = path.strip('/').split('/')
+    current_node = vfs_root
+
+    for part in path_parts:
+        if part == '':
+            continue
+
+        if current_node.get('type') != 'directory':
+            return None
+
+        found = False
+        for child in current_node.get('children', []):
+            if child.get('name') == part:
+                current_node = child
+                found = True
+                break
+
+        if not found:
+            return None
+
+    return current_node
+
+
+def get_current_vfs_node():
+    current_path = '/' + '/'.join(current_vfs_path)
+    return find_vfs_node(current_path)
+
 
 def parse_cmd(line):
     if not line.strip():
@@ -54,27 +118,153 @@ def parse_cmd(line):
     cmd, args = line[0].lower(), line[1:]
     return cmd, args
 
+
 def execute_cmd(cmd, args):
+    global current_vfs_path
+
     if cmd == 'exit':
         print(f"Exiting KEEmulator.")
         sys.exit(0)
+
     elif cmd == 'ls':
-        result = f"ls {args}"
-        print(result)
-        return result
+        if not vfs_root:
+            return "VFS not loaded"
+
+        target_path = args[0] if args else ''
+
+        if target_path.startswith('/'):
+            node = find_vfs_node(target_path)
+        else:
+            current_dir = '/' + '/'.join(current_vfs_path)
+            full_path = current_dir + '/' + target_path if current_dir != '/' else '/' + target_path
+            node = find_vfs_node(full_path)
+
+        if not node:
+            return f"ls: {target_path}: No such file or directory"
+
+        if node.get('type') != 'directory':
+            return f"ls: {target_path}: Not a directory"
+
+        result = []
+        for child in node.get('children', []):
+            if child.get('type') == 'directory':
+                result.append(f"{child['name']}/")
+            else:
+                result.append(child['name'])
+
+        output = '  '.join(result)
+        print(output)
+        return output
+
     elif cmd == 'cd':
-        result = f"cd {args}"
-        print(result)
-        return result
+        if not vfs_root:
+            return "VFS not loaded"
+
+        target_path = args[0] if args else '/'
+
+        if target_path == '/':
+            current_vfs_path = []
+            return "Changed to root directory"
+
+        if target_path.startswith('/'):
+            new_path = target_path
+        else:
+            current_dir = '/' + '/'.join(current_vfs_path)
+            new_path = current_dir + '/' + target_path if current_dir != '/' else '/' + target_path
+
+        node = find_vfs_node(new_path)
+
+        if not node:
+            return f"cd: {target_path}: No such file or directory"
+
+        if node.get('type') != 'directory':
+            return f"cd: {target_path}: Not a directory"
+
+        path_parts = new_path.strip('/').split('/')
+        current_vfs_path = path_parts
+        return f"Changed to directory {new_path}"
+
+    elif cmd == 'cat':
+        if not vfs_root:
+            return "VFS not loaded"
+
+        if not args:
+            return "cat: missing file operand"
+
+        filename = args[0]
+
+        if filename.startswith('/'):
+            node = find_vfs_node(filename)
+        else:
+            current_dir = '/' + '/'.join(current_vfs_path)
+            full_path = current_dir + '/' + filename if current_dir != '/' else '/' + filename
+            node = find_vfs_node(full_path)
+
+        if not node:
+            return f"cat: {filename}: No such file or directory"
+
+        if node.get('type') != 'file':
+            return f"cat: {filename}: Is a directory"
+
+        content = node.get('content', '')
+        encoding = node.get('encoding', 'text')
+
+        if encoding == 'base64':
+            try:
+                content = base64.b64decode(content).decode('utf-8')
+            except:
+                return f"cat: {filename}: Error decoding base64 content"
+
+        print(content)
+        return f"Displayed content of {filename}"
+
+    elif cmd == 'pwd':
+        if not vfs_root:
+            return "VFS not loaded"
+
+        path = '/' + '/'.join(current_vfs_path)
+        print(path)
+        return path
+
+    elif cmd == 'tree':
+        if not vfs_root:
+            return "VFS not loaded"
+
+        target_path = args[0] if args else '/' + '/'.join(current_vfs_path)
+        node = find_vfs_node(target_path)
+
+        if not node:
+            return f"tree: {target_path}: No such file or directory"
+
+        if node.get('type') != 'directory':
+            return f"tree: {target_path}: Not a directory"
+
+        def print_tree(node, prefix="", is_last=True):
+            name = node.get('name', 'unknown')
+            if node.get('type') == 'directory':
+                result = prefix + ("└── " if is_last else "├── ") + name + "/\n"
+                children = node.get('children', [])
+                for i, child in enumerate(children):
+                    result += print_tree(child, prefix + ("    " if is_last else "│   "), i == len(children) - 1)
+            else:
+                result = prefix + ("└── " if is_last else "├── ") + name + "\n"
+            return result
+
+        tree_output = print_tree(node)
+        print(tree_output)
+        return tree_output
+
     else:
         result = f"Command not found: {cmd}"
         print(result)
         return result
 
+
 def log_event(username, command, result):
     command_escaped = command.replace('"', '""')
     result_escaped = result.replace('"', '""')
     logging.info(f'{username},"{command_escaped}","{result_escaped}"')
+
 
 def run_script(script_path):
     try:
@@ -101,40 +291,50 @@ def run_script(script_path):
         print(f"Error running script: {e}")
 
 
-if __name__ == '__main__':
-    args = setup_args()
+args = setup_args()
 
-    VFS_PATH = args.vfs_path
-    LOG_PATH = args.log_path
-    SCRIPT_PATH = args.script_path
+VFS_PATH = args.vfs_path
+LOG_PATH = args.log_path
+SCRIPT_PATH = args.script_path
 
-    print("Launch parameters received:")
-    print(f"\tVFS_PATH: {VFS_PATH}")
-    print(f"\tLOG_PATH: {LOG_PATH}")
-    print(f"\tSCRIPT_PATH: {SCRIPT_PATH}")
+print("Launch parameters received:")
+print(f"\tVFS_PATH: {VFS_PATH}")
+print(f"\tLOG_PATH: {LOG_PATH}")
+print(f"\tSCRIPT_PATH: {SCRIPT_PATH}")
 
-    if LOG_PATH:
-        setup_logging()
+if LOG_PATH:
+    setup_logging()
 
-    if SCRIPT_PATH:
-        run_script(SCRIPT_PATH)
+if VFS_PATH:
+    if load_vfs():
+        print("VFS loaded successfully")
+    else:
+        print("Failed to load VFS")
 
-    print("KEEmulator. Type 'exit' to quit.")
-    while True:
-        try:
-            prompt = get_uhd()
-            line = input(prompt)
-            cmd, args = parse_cmd(line)
-            if cmd:
-                result = execute_cmd(cmd, args)
-                if LOG_PATH:
-                    log_event(get_username(), line, result)
-        except KeyboardInterrupt:
-            print("\nType 'exit' to quit")
-        except Exception as e:
-            print(f"Error: {e}")
+if SCRIPT_PATH:
+    run_script(SCRIPT_PATH)
+
+print("KEEmulator. Type 'exit' to quit.")
+while True:
+    try:
+        prompt = get_uhd()
+        line = input(prompt)
+        cmd, args = parse_cmd(line)
+        if cmd:
+            result = execute_cmd(cmd, args)
+            if LOG_PATH:
+                log_event(get_username(), line, result)
+    except KeyboardInterrupt:
+        print("\nType 'exit' to quit")
+    except Exception as e:
+        print(f"Error: {e}")
 
 # для тестов
-# python KEEmulator.py
-# python KEEmulator.py --vfs_path=/home/user/vfs --log_path=emulator.log --script_path=script1.txt
-# python KEEmulator.py --vfs_path=/home/user/vfs --log_path=emulator.log --script_path=script2.txt
+# Минимальная VFS
+# python KEEmulator.py --vfs_path=simpleVFS.json --log_path=emulator.log --script_path=script1.txt
+#
+# Расширенная VFS
+# python KEEmulator.py --vfs_path=advancedVFS.json --log_path=emulator.log --script_path=script2.txt
+#
+# Полный тест
+# python KEEmulator.py --vfs_path=advancedVFS.json --log_path=emulator.log --script_path=test_script.txt

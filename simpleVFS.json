@@ -1,0 +1,11 @@
+{
+  "type": "directory",
+  "name": "root",
+  "children": [
+    {
+      "type": "file",
+      "name": "readme.txt",
+      "content": "Simple VFS example"
+    }
+  ]
+}

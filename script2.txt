@@ -1,5 +1,11 @@
-cd /var
-ls -l
-echo "Testing unknown command"
-unknown_cmd
+# Error handling test
+ls nonexistent
+cd /invalid/path
+cat /home/user/.bashrc
+cat /binary.dat
+cd /etc
+cat config.conf
+pwd
+ls /home/user/documents/notes.txt
+cd /home/user/documents/notes.txt
 exit

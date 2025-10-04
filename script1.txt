@@ -1,4 +1,16 @@
-ls -la
-cd /home
+pwd
 ls
+ls /
+cd home
+ls
+cd user/documents
+pwd
+ls
+cat notes.txt
+cd /
+ls etc
+cat etc/config.conf
+cat binary.dat
+tree
+tree home
 exit

@@ -1,0 +1,36 @@
+# Comprehensive test script
+echo "=== Testing basic commands ==="
+pwd
+ls
+ls /
+
+echo "=== Testing navigation ==="
+cd home
+pwd
+ls
+cd user/documents
+pwd
+ls
+
+echo "=== Testing file operations ==="
+cat notes.txt
+cd /
+cat /home/user/.bashrc
+
+echo "=== Testing binary files ==="
+cat binary.dat
+
+echo "=== Testing tree view ==="
+tree
+tree /home
+
+echo "=== Testing error handling ==="
+ls invalid_path
+cd /nonexistent/directory
+cat /no/such/file
+
+echo "=== Final state ==="
+pwd
+ls
+
+exit

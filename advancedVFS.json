@@ -1,0 +1,51 @@
+{
+  "type": "directory",
+  "name": "root",
+  "children": [
+    {
+      "type": "directory",
+      "name": "home",
+      "children": [
+        {
+          "type": "directory",
+          "name": "user",
+          "children": [
+            {
+              "type": "file",
+              "name": ".bashrc",
+              "content": "echo 'Welcome'"
+            },
+            {
+              "type": "directory",
+              "name": "documents",
+              "children": [
+                {
+                  "type": "file",
+                  "name": "notes.txt",
+                  "content": "Important notes"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "directory",
+      "name": "etc",
+      "children": [
+        {
+          "type": "file",
+          "name": "config.conf",
+          "content": "setting=value"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "binary.dat",
+      "encoding": "base64",
+      "content": "SGVsbG8gV29ybGQh"
+    }
+  ]
+}
