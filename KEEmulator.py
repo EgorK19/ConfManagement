@@ -3,7 +3,6 @@ import sys
 import shlex
 import argparse
 import logging
-from datetime import datetime
 
 VFS_PATH = None
 LOG_PATH = None
@@ -72,23 +71,32 @@ def execute_cmd(cmd, args):
         print(result)
         return result
 
+def log_event(username, command, result):
+    command_escaped = command.replace('"', '""')
+    result_escaped = result.replace('"', '""')
+    logging.info(f'{username},"{command_escaped}","{result_escaped}"')
 
 def run_script(script_path):
     try:
         with open(script_path, 'r') as f:
-            for line in f:
+            for line_num, line in enumerate(f, 1):
                 line = line.strip()
-                if not line:
+                if not line or line.startswith('#'):
                     continue
                 print(get_uhd() + line)
                 cmd, args = parse_cmd(line)
                 if cmd:
-                    result = execute_cmd(cmd, args)
-                    if LOG_PATH:
-                        logging.info(f'{get_username()},"{line}","{result}"')
+                    try:
+                        result = execute_cmd(cmd, args)
+                        if LOG_PATH:
+                            log_event(get_username(), line, result)
+                    except Exception as e:
+                        print(f"Error in line {line_num}: {e}")
+                        if LOG_PATH:
+                            log_event(get_username(), line, f"ERROR: {e}")
                 else:
                     if LOG_PATH:
-                        logging.info(f'{get_username()},"{line}",""')
+                        log_event(get_username(), line, "")
     except Exception as e:
         print(f"Error running script: {e}")
 
@@ -120,7 +128,7 @@ if __name__ == '__main__':
             if cmd:
                 result = execute_cmd(cmd, args)
                 if LOG_PATH:
-                    logging.info(f'{get_username()},"{line}","{result}"')
+                    log_event(get_username(), line, result)
         except KeyboardInterrupt:
             print("\nType 'exit' to quit")
         except Exception as e:
