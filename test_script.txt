@@ -1,4 +1,4 @@
-# Comprehensive test script
+# test script
 echo "=== Testing basic commands ==="
 pwd
 ls
@@ -29,8 +29,33 @@ ls invalid_path
 cd /nonexistent/directory
 cat /no/such/file
 
-echo "=== Final state ==="
+echo "=== Testing ls ==="
+ls
+ls /home
+ls invalid_path
+
+echo "=== Testing cd ==="
+cd home
 pwd
 ls
+cd user/documents
+pwd
+cd /nonexistent
+cd /
 
+echo "=== Testing uniq ==="
+cd home/user/documents
+cat notes.txt
+uniq notes.txt
+uniq
+uniq /nonexistent
+uniq /
+
+echo "=== Testing who ==="
+who
+who extra_arg  # Simulates no effect or ignore, as who typically ignores args
+
+echo "=== Final state with VFS ==="
+pwd
+ls
 exit

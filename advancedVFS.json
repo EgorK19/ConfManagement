@@ -22,7 +22,7 @@
                 {
                   "type": "file",
                   "name": "notes.txt",
-                  "content": "Important notes"
+                  "content": "Important notes\nImportant notes\nUnique line\nImportant notes\nImportant notes"
                 }
               ]
             }
