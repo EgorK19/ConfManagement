@@ -55,7 +55,30 @@ echo "=== Testing who ==="
 who
 who extra_arg  # Simulates no effect or ignore, as who typically ignores args
 
+echo "=== Testing cp ==="
+cd /
+ls /home/user/documents
+cp /home/user/documents/notes.txt /home/user/documents/notes_copy.txt
+ls /home/user/documents
+cat /home/user/documents/notes_copy.txt
+cp /home/user/documents/notes.txt /etc/
+ls /etc  # Verify
+cp  # Missing args error
+cp nonexistent.txt /home/
+cp /home/user/documents/notes.txt /home/user/documents/notes.txt
+cp /home/user/documents /home/user/docs_copy
+
+echo "=== Testing rm ==="
+ls /home/user/documents
+rm /home/user/documents/notes_copy.txt
+ls /home/user/documents  # Verify removed
+rm /home/user/documents/notes_copy.txt
+rm /home/user/documents
+rm
+rm /
+
 echo "=== Final state with VFS ==="
 pwd
 ls
+tree
 exit

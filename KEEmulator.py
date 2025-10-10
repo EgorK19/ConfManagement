@@ -6,6 +6,7 @@ import logging
 import json
 import base64
 import datetime
+import copy
 
 VFS_PATH = None
 LOG_PATH = None
@@ -13,14 +14,12 @@ SCRIPT_PATH = None
 vfs_root = None
 current_vfs_path = []
 
-
 def setup_args():
     parser = argparse.ArgumentParser(description='KEEmulator')
     parser.add_argument('--vfs_path', type=str, help='Path to VFS physical location')
     parser.add_argument('--log_path', type=str, help='Path to log file')
     parser.add_argument('--script_path', type=str, help='Path to startup script')
     return parser.parse_args()
-
 
 def setup_logging():
     logging.basicConfig(
@@ -30,13 +29,11 @@ def setup_logging():
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-
 def get_username():
     try:
         return os.getlogin()
     except:
         return os.environ.get('USERNAME') or os.environ.get('USER') or 'unknown'
-
 
 def get_uhd():
     try:
@@ -61,7 +58,6 @@ def get_uhd():
 
     return f"{username}@{hostname}:{cwd}$ "
 
-
 def load_vfs():
     global vfs_root, current_vfs_path
     if not VFS_PATH:
@@ -75,7 +71,6 @@ def load_vfs():
     except Exception as e:
         print(f"Error loading VFS: {e}")
         return False
-
 
 def find_vfs_node(path):
     if not vfs_root:
@@ -106,11 +101,19 @@ def find_vfs_node(path):
 
     return current_node
 
-
 def get_current_vfs_node():
     current_path = '/' + '/'.join(current_vfs_path)
     return find_vfs_node(current_path)
 
+def get_parent_and_name(path):
+    if not path or path == '/':
+        return None, ''
+
+    path_parts = path.strip('/').split('/')
+    parent_path = '/' + '/'.join(path_parts[:-1]) if len(path_parts) > 1 else '/'
+    name = path_parts[-1]
+    parent = find_vfs_node(parent_path)
+    return parent, name
 
 def parse_cmd(line):
     if not line.strip():
@@ -118,7 +121,6 @@ def parse_cmd(line):
     line = shlex.split(line)
     cmd, args = line[0].lower(), line[1:]
     return cmd, args
-
 
 def execute_cmd(cmd, args):
     global current_vfs_path
@@ -137,6 +139,7 @@ def execute_cmd(cmd, args):
 
         if target_path.startswith('/'):
             node = find_vfs_node(target_path)
+            full_path = target_path
         else:
             current_dir = '/' + '/'.join(current_vfs_path)
             full_path = current_dir + '/' + target_path if current_dir != '/' else '/' + target_path
@@ -148,9 +151,8 @@ def execute_cmd(cmd, args):
             return error
 
         if node.get('type') != 'directory':
-            error = f"ls: {target_path}: Not a directory"
-            print(error)
-            return error
+            print(node['name'])  # If it's a file, just print its name
+            return node['name']
 
         result = []
         for child in node.get('children', []):
@@ -194,7 +196,7 @@ def execute_cmd(cmd, args):
             return error
 
         path_parts = new_path.strip('/').split('/')
-        current_vfs_path = path_parts
+        current_vfs_path = [p for p in path_parts if p]
         return f"Changed to directory {new_path}"
 
     elif cmd == 'cat':
@@ -211,11 +213,12 @@ def execute_cmd(cmd, args):
         filename = args[0]
 
         if filename.startswith('/'):
-            node = find_vfs_node(filename)
+            full_path = filename
         else:
             current_dir = '/' + '/'.join(current_vfs_path)
             full_path = current_dir + '/' + filename if current_dir != '/' else '/' + filename
-            node = find_vfs_node(full_path)
+
+        node = find_vfs_node(full_path)
 
         if not node:
             error = f"cat: {filename}: No such file or directory"
@@ -247,7 +250,7 @@ def execute_cmd(cmd, args):
             print(error)
             return error
 
-        path = '/' + '/'.join(current_vfs_path)
+        path = '/' if not current_vfs_path else '/' + '/'.join(current_vfs_path)
         print(path)
         return path
 
@@ -258,7 +261,10 @@ def execute_cmd(cmd, args):
             return error
 
         target_path = args[0] if args else '/' + '/'.join(current_vfs_path)
-        node = find_vfs_node(target_path)
+        if not target_path or target_path == '/':
+            node = vfs_root
+        else:
+            node = find_vfs_node(target_path)
 
         if not node:
             error = f"tree: {target_path}: No such file or directory"
@@ -270,18 +276,23 @@ def execute_cmd(cmd, args):
             print(error)
             return error
 
-        def print_tree(node, prefix="", is_last=True):
-            name = node.get('name', 'unknown')
-            if node.get('type') == 'directory':
-                result = prefix + ("└── " if is_last else "├── ") + name + "/\n"
-                children = node.get('children', [])
-                for i, child in enumerate(children):
-                    result += print_tree(child, prefix + ("    " if is_last else "│   "), i == len(children) - 1)
+        def print_tree(current, prefix="", is_last=True, is_root=True):
+            if is_root:
+                name = "root/" if target_path == '/' else current.get('name', '') + '/'
             else:
-                result = prefix + ("└── " if is_last else "├── ") + name + "\n"
+                name = current.get('name', '')
+            line = prefix + ("└── " if is_last else "├── ") + name
+            if current.get('type') == 'directory':
+                line += "/" if not is_root else ""
+            result = line + "\n"
+            if current.get('type') == 'directory':
+                children = current.get('children', [])
+                for i, child in enumerate(sorted(children, key=lambda x: x['name'])):
+                    new_prefix = prefix + ("    " if is_last else "│   ")
+                    result += print_tree(child, new_prefix, i == len(children) - 1, False)
             return result
 
-        tree_output = print_tree(node)
+        tree_output = print_tree(node, is_root=True)
         print(tree_output)
         return tree_output
 
@@ -299,11 +310,12 @@ def execute_cmd(cmd, args):
         filename = args[0]
 
         if filename.startswith('/'):
-            node = find_vfs_node(filename)
+            full_path = filename
         else:
             current_dir = '/' + '/'.join(current_vfs_path)
             full_path = current_dir + '/' + filename if current_dir != '/' else '/' + filename
-            node = find_vfs_node(full_path)
+
+        node = find_vfs_node(full_path)
 
         if not node:
             error = f"uniq: {filename}: No such file or directory"
@@ -326,7 +338,7 @@ def execute_cmd(cmd, args):
                 print(error)
                 return error
 
-        lines = content.split('\n')
+        lines = content.splitlines()
         unique_lines = []
         for line in lines:
             if not unique_lines or line != unique_lines[-1]:
@@ -348,17 +360,117 @@ def execute_cmd(cmd, args):
         print(output)
         return output
 
+    elif cmd == 'cp':
+        if not vfs_root:
+            error = "VFS not loaded"
+            print(error)
+            return error
+
+        if len(args) != 2:
+            error = "cp: missing source or destination operand"
+            print(error)
+            return error
+
+        src = args[0]
+        dest = args[1]
+
+        if src.startswith('/'):
+            src_full = src
+        else:
+            current_dir = '/' + '/'.join(current_vfs_path)
+            src_full = current_dir + '/' + src if current_dir != '/' else '/' + src
+        src_node = find_vfs_node(src_full)
+        if not src_node:
+            error = f"cp: cannot stat '{src}': No such file or directory"
+            print(error)
+            return error
+        if src_node.get('type') == 'directory':
+            error = f"cp: omitting directory '{src}' (use -r for recursive copy)"
+            print(error)
+            return error
+
+        if dest.startswith('/'):
+            dest_full = dest
+        else:
+            current_dir = '/' + '/'.join(current_vfs_path)
+            dest_full = current_dir + '/' + dest if current_dir != '/' else '/' + dest
+        dest_node = find_vfs_node(dest_full)
+
+        if dest_node and dest_node['type'] == 'directory':
+            src_parent, src_name = get_parent_and_name(src_full)
+            dest_parent = dest_node
+            dest_name = src_name
+            for child in dest_parent.get('children', []):
+                if child['name'] == dest_name:
+                    error = f"cp: cannot create '{dest}/{dest_name}': File exists"
+                    print(error)
+                    return error
+        else:
+            # Treat as new file path
+            dest_parent, dest_name = get_parent_and_name(dest_full)
+            if not dest_parent:
+                error = f"cp: cannot create '{dest}': Invalid path"
+                print(error)
+                return error
+            if dest_node:
+                error = f"cp: cannot overwrite '{dest}': File exists"
+                print(error)
+                return error
+
+        copied_node = copy.deepcopy(src_node)
+        copied_node['name'] = dest_name
+        dest_parent['children'].append(copied_node)
+        output = f"Copied '{src}' to '{dest}'"
+        print(output)
+        return output
+
+    elif cmd == 'rm':
+        if not vfs_root:
+            error = "VFS not loaded"
+            print(error)
+            return error
+
+        if not args:
+            error = "rm: missing operand"
+            print(error)
+            return error
+
+        target = args[0]
+
+        if target.startswith('/'):
+            target_full = target
+        else:
+            current_dir = '/' + '/'.join(current_vfs_path)
+            target_full = current_dir + '/' + target if current_dir != '/' else '/' + target
+        target_node = find_vfs_node(target_full)
+        if not target_node:
+            error = f"rm: cannot remove '{target}': No such file or directory"
+            print(error)
+            return error
+        if target_node.get('type') == 'directory':
+            error = f"rm: cannot remove '{target}': Is a directory (use -r for recursive removal)"
+            print(error)
+            return error
+
+        parent, name = get_parent_and_name(target_full)
+        if not parent:
+            error = "rm: cannot remove root"
+            print(error)
+            return error
+        parent['children'] = [child for child in parent['children'] if child['name'] != name]
+        output = f"Removed '{target}'"
+        print(output)
+        return output
+
     else:
         result = f"Command not found: {cmd}"
         print(result)
         return result
 
-
 def log_event(username, command, result):
     command_escaped = command.replace('"', '""')
     result_escaped = result.replace('"', '""') if result else ""
     logging.info(f'{username},"{command_escaped}","{result_escaped}"')
-
 
 def run_script(script_path):
     try:
@@ -384,7 +496,6 @@ def run_script(script_path):
                         log_event(get_username(), line, "")
     except Exception as e:
         print(f"Error running script: {e}")
-
 
 args = setup_args()
 
