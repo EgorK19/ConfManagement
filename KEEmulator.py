@@ -427,9 +427,9 @@ while True:
 # для тестов
 # Минимальная VFS
 # python KEEmulator.py --vfs_path=simpleVFS.json --log_path=emulator.log --script_path=script1.txt
-#
+
 # Расширенная VFS
 # python KEEmulator.py --vfs_path=advancedVFS.json --log_path=emulator.log --script_path=script2.txt
-#
+
 # Полный тест
 # python KEEmulator.py --vfs_path=advancedVFS.json --log_path=emulator.log --script_path=test_script.txt
