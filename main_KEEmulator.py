@@ -46,6 +46,7 @@ while True:
         print(f"Error: {e}")
 
 # для тестов
+
 # Минимальная VFS
 # python main_KEEmulator.py --vfs_path=simpleVFS.json --log_path=emulator.log --script_path=script1.txt
 

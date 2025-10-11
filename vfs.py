@@ -19,30 +19,23 @@ def load_vfs(VFS_PATH):
 def find_vfs_node(path):
     if not vfs_root:
         return None
-
     if not path or path == '/':
         return vfs_root
-
     path_parts = path.strip('/').split('/')
     current_node = vfs_root
-
     for part in path_parts:
         if part == '':
             continue
-
         if current_node.get('type') != 'directory':
             return None
-
         found = False
         for child in current_node.get('children', []):
             if child.get('name') == part:
                 current_node = child
                 found = True
                 break
-
         if not found:
             return None
-
     return current_node
 
 def get_current_vfs_node():
@@ -52,7 +45,6 @@ def get_current_vfs_node():
 def get_parent_and_name(path):
     if not path or path == '/':
         return None, ''
-
     path_parts = path.strip('/').split('/')
     parent_path = '/' + '/'.join(path_parts[:-1]) if len(path_parts) > 1 else '/'
     name = path_parts[-1]

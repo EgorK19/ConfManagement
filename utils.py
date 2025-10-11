@@ -36,7 +36,6 @@ def get_uhd():
             hostname = os.environ.get('COMPUTERNAME', 'unknown-host')
     except:
         hostname = 'unknown-host'
-
     if vfs.vfs_root:
         cwd = '/' + '/'.join(vfs.current_vfs_path)
     else:
@@ -44,5 +43,4 @@ def get_uhd():
         dir = os.path.expanduser('~')
         if cwd.startswith(dir):
             cwd = '~' + cwd[len(dir):]
-
     return f"{username}@{hostname}:{cwd}$ "
